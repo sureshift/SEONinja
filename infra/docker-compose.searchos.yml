@@ -1,0 +1,73 @@
+# ══════════════════════════════════════════════════════════════════════════
+#  Search Growth OS — integration into the existing FreightIt/SureShift stack
+#
+#  This does NOT replace anything in your main compose file. Run it alongside
+#  it from the same directory (~/SureShiftERP/), referencing the same .env:
+#
+#    docker compose -f docker-compose.yml -f docker-compose.searchos.yml \
+#      --env-file .env up -d --build searchos-api
+#
+#  Prerequisite (one-time): add a line to your postgres-init service's
+#  command block so the searchos_db exists — see
+#  infra/postgres-init-addendum.md in this repo for the exact diff.
+# ══════════════════════════════════════════════════════════════════════════
+
+services:
+
+  searchos-api:
+    build: ./backend
+    container_name: searchos-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    environment:
+      - ENVIRONMENT=production
+      # Dedicated DB on the shared postgres instance (see postgres-init-addendum.md)
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/searchos_db
+      # DB index 2 — n8n's Bull queue uses redis db 0 by default; keep search-os
+      # on its own index so keys never collide.
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/3
+      - JWT_SECRET_KEY=${SEARCHOS_JWT_SECRET_KEY}
+      - LLM_PROVIDER=lmstudio
+      - LMSTUDIO_BASE_URL=${LM_STUDIO_URL}
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - SERP_PROVIDER=own
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./sureshift-search-os/backend:/app
+    networks:
+      - freight-net
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # searchos-worker (Celery) is added in a later phase once there are real
+  # background jobs to run — no empty worker container here.
+
+# No top-level `networks:` block here on purpose — when this file is run
+# together with your main docker-compose.yml via `-f`, Compose merges
+# service definitions and reuses the `freight-net` network already declared
+# there. Redeclaring it here (especially as `external: true`) would conflict
+# with the bridge/ipam config in your main file.
