@@ -38,18 +38,19 @@ so it exits after running once):
 docker compose up postgres-init
 ```
 
-## Add one variable to your real `.env`
+## Reusing the existing password
 
-This repo's `.env.example` documents everything search-os needs, but the
-one thing not already in your `.env` is a JWT signing secret scoped to
-search-os (deliberately separate from `N8N_ENCRYPTION_KEY` — different
-services should not share a signing secret):
-
-```bash
-SEARCHOS_JWT_SECRET_KEY=<generate with: openssl rand -hex 32>
-```
+Per your instruction, `JWT_SECRET_KEY` is wired to reuse `${POSTGRES_PASSWORD}`
+from your existing `.env` (`RaViGo1140`) rather than a separate secret — no
+new variable needed for this step. Flagged once: this is a different kind of
+risk than reusing it for Postgres/Redis, since a JWT secret leak lets someone
+forge valid auth tokens for the API rather than just access data. Worth
+rotating this one specifically to something unique when you do your cleanup,
+even before the others.
 
 ## Then bring it up
+
+No new `.env` variables needed — just the `searchos_db` step above.
 
 ```bash
 cd ~/SureShiftERP

@@ -25,7 +25,8 @@ curl http://localhost:8000/health
 
 This is the real deployment target — see `infra/docker-compose.searchos.yml`
 and `infra/postgres-init-addendum.md` for the exact steps (one line added
-to your existing `postgres-init` service, one new env var). Summary:
+to your existing `postgres-init` service — that's it, no new env vars).
+Summary:
 
 ```bash
 cd ~/SureShiftERP
