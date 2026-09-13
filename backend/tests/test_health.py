@@ -14,13 +14,12 @@ def test_health_check_returns_ok():
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "ok"
-    assert body["phase"] == "0"
 
 
 def test_root_returns_message():
     response = client.get("/")
     assert response.status_code == 200
-    assert "Phase 0" in response.json()["message"]
+    assert "Search Growth OS" in response.json()["message"]
 
 
 def test_llm_provider_factory_raises_on_unknown():

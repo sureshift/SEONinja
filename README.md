@@ -3,15 +3,27 @@
 Autonomous SEO + AEO + GEO Search Growth Operating System.
 Built in gated phases — see `docs/phased-roadmap.md`.
 
-## Status: Phase 0 complete ✅
+## Status: Phase 1 complete ✅ (Data Spine)
 
-- FastAPI backend boots and responds on `/health`
-- Config loads from environment (no hard-coded values)
-- `LLMProvider` and `SERPProvider` abstractions stubbed, factory-based,
-  swappable via config
-- Docker Compose defines Postgres + Redis + API
-- CI runs the test suite on every push
-- 4/4 Phase 0 gate tests passing
+- Postgres schema: businesses, services, locations, business_goals,
+  customers, leads, quotations, bookings, revenue, users, audit_log
+- Every business-data table carries `source` + `confidence` + timestamps
+  from day one (Module 47/48 groundwork)
+- JWT auth, 3-role RBAC (admin/editor/viewer), first registered user
+  becomes admin (bootstrap), audit log written on every business write
+- Alembic migrations, tested against real Postgres (not SQLite)
+- 11/11 gate tests passing (Phase 0: 4, Phase 1: 7)
+
+### Running the migration (required once per environment)
+
+```bash
+# Standalone:
+cd backend && alembic upgrade head
+
+# Integrated into the real stack:
+docker compose -f docker-compose.yml -f sureshift-search-os/infra/docker-compose.searchos.yml \
+  --env-file .env exec searchos-api alembic upgrade head
+```
 
 ## Running locally (standalone, no other services required)
 
@@ -48,7 +60,8 @@ pip install -r requirements.txt
 pytest tests/ -v
 ```
 
-## Next: Phase 1 — Data Spine
-Core business/services/locations/leads schema, auth, RBAC, audit log.
-Not started yet — do not build on top of this repo assuming Phase 1
-exists until its own gate tests pass.
+## Next: Phase 2 — Crawler + Technical SEO
+Own crawler (HTTP client, HTML parser, robots.txt/sitemap parser,
+Playwright rendering) + technical issue detector. Not started yet — do
+not build on top of this repo assuming Phase 2 exists until its own
+gate tests pass.

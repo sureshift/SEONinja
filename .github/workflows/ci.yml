@@ -7,6 +7,20 @@ on:
 jobs:
   backend-tests:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: searchos_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -15,8 +29,14 @@ jobs:
       - name: Install dependencies
         working-directory: backend
         run: pip install -r requirements.txt
+      - name: Run Alembic migrations
+        working-directory: backend
+        env:
+          DATABASE_URL: "postgresql+psycopg://postgres:postgres@localhost:5432/searchos_db"
+        run: alembic upgrade head
       - name: Run tests
         working-directory: backend
         env:
-          DATABASE_URL: "postgresql+psycopg://searchos:searchos@localhost:5432/searchos"
+          DATABASE_URL: "postgresql+psycopg://postgres:postgres@localhost:5432/searchos_db"
+          TEST_DATABASE_URL: "postgresql+psycopg://postgres:postgres@localhost:5432/searchos_db"
         run: pytest tests/ -v
