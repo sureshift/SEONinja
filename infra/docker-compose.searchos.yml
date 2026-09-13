@@ -7,6 +7,11 @@
 #    docker compose -f docker-compose.yml -f docker-compose.searchos.yml \
 #      --env-file .env up -d --build searchos-api
 #
+#  NOTE: all relative paths below (build context, volumes) are written
+#  relative to ~/SureShiftERP/ (the directory of the FIRST -f file), not
+#  relative to this file's own location in sureshift-search-os/infra/ -
+#  that's how Compose resolves paths when merging multiple -f files.
+#
 #  Prerequisite (one-time): add a line to your postgres-init service's
 #  command block so the searchos_db exists — see
 #  infra/postgres-init-addendum.md in this repo for the exact diff.
@@ -15,7 +20,7 @@
 services:
 
   searchos-api:
-    build: ./backend
+    build: ./sureshift-search-os/backend
     container_name: searchos-api
     restart: unless-stopped
     depends_on:
