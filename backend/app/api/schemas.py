@@ -43,3 +43,51 @@ class BusinessOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class CrawlJobCreate(BaseModel):
+    business_id: uuid.UUID
+    start_url: str
+    max_pages: int = 50
+    max_depth: int = 3
+
+
+class CrawlJobOut(BaseModel):
+    id: uuid.UUID
+    business_id: uuid.UUID
+    start_url: str
+    status: str
+    max_pages: int
+    max_depth: int
+    pages_crawled: int
+    error_message: str | None
+
+    class Config:
+        from_attributes = True
+
+
+class CrawledPageOut(BaseModel):
+    id: uuid.UUID
+    url: str
+    status_code: int | None
+    title: str | None
+    meta_description: str | None
+    word_count: int | None
+    canonical_url: str | None
+    is_noindex: bool
+
+    class Config:
+        from_attributes = True
+
+
+class TechnicalIssueOut(BaseModel):
+    id: uuid.UUID
+    issue_type: str
+    severity: str
+    affected_url: str
+    description: str
+    recommended_fix: str | None
+    auto_fix_eligible: bool
+
+    class Config:
+        from_attributes = True

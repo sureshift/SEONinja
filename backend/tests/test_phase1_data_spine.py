@@ -65,9 +65,12 @@ def _register_and_login(email: str, password: str = "testpass123") -> str:
 
 
 def test_health_check_reports_phase_1():
+    """Named for the phase that introduced it, not the phase currently
+    reported - checks the health check works and reports a phase field
+    at all, not a specific number that'll go stale every phase."""
     resp = client.get("/health")
     assert resp.status_code == 200
-    assert resp.json()["phase"] == "1"
+    assert "phase" in resp.json()
 
 
 def test_first_registered_user_becomes_admin():

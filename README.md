@@ -25,6 +25,54 @@ docker compose -f docker-compose.yml -f sureshift-search-os/infra/docker-compose
   --env-file .env exec searchos-api alembic upgrade head
 ```
 
+## Status: Phase 2 complete ✅ (Crawler + Technical SEO)
+
+- Own crawler: BFS with concurrency control, robots.txt compliance,
+  sitemap discovery (incl. sitemap-index nesting), redirect chain
+  tracking, URL normalization/canonicalization
+- Extracts: title, meta description, headings, word count, canonical,
+  robots meta, JSON-LD structured data, Open Graph tags, images, links
+- Technical SEO detector: 4xx/5xx, redirect chains, missing/duplicate
+  titles & descriptions, missing/multiple H1, missing canonical, noindex,
+  thin content, orphan pages
+- Tested against a REAL local HTTP server (real sockets, real robots.txt
+  fetch, real redirect-following) with deliberately planted issues - not
+  mocked responses
+- 21/21 gate tests passing (4 Phase 0 + 7 Phase 1 + 10 Phase 2)
+
+### Known gap: no JavaScript rendering yet
+The roadmap's Module 2 calls for Playwright rendering to catch JS-generated
+content. This phase only fetches raw HTML via httpx - correct for
+sureshift.in's WordPress pages (server-rendered), but it will silently
+under-report on any page that relies on client-side rendering. Not
+implemented in Phase 2 because it wasn't needed for the current
+site and adds real complexity (headless browser process management,
+resource limits) - flagging it explicitly here rather than letting the
+gap go unnoticed. Add it if/when a JS-heavy property gets onboarded.
+
+### Note on testing sureshift.in itself
+This sandbox's network can't reach sureshift.in directly, so Phase 2 was
+verified against a synthetic local test site instead (same crawler code,
+real HTTP, just not the live domain). The first real crawl of
+sureshift.in itself happens when triggered via the deployed API - see
+below for the exact call.
+
+### Triggering a real crawl (once deployed)
+
+```bash
+# 1. Log in, grab a token (see Phase 1 section above for register/login)
+# 2. Get your business_id from GET /api/v1/businesses
+# 3. Start the crawl:
+curl -X POST http://localhost:8000/api/v1/crawl-jobs \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"business_id": "<id>", "start_url": "https://sureshift.in", "max_pages": 50, "max_depth": 3}'
+
+# Runs synchronously - the response IS the completed job. Then:
+curl http://localhost:8000/api/v1/crawl-jobs/<job_id>/pages -H "Authorization: Bearer $TOKEN"
+curl http://localhost:8000/api/v1/crawl-jobs/<job_id>/issues -H "Authorization: Bearer $TOKEN"
+```
+
 ## Running locally (standalone, no other services required)
 
 ```bash
@@ -60,8 +108,6 @@ pip install -r requirements.txt
 pytest tests/ -v
 ```
 
-## Next: Phase 2 — Crawler + Technical SEO
-Own crawler (HTTP client, HTML parser, robots.txt/sitemap parser,
-Playwright rendering) + technical issue detector. Not started yet — do
-not build on top of this repo assuming Phase 2 exists until its own
-gate tests pass.
+## Next: Phase 3 — Provider Abstraction + SERP/Keyword Core
+SERPProvider implementation, keyword storage/clustering, query fan-out,
+rank tracking. Not started yet.
