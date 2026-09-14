@@ -1,0 +1,211 @@
+"""
+Phase 3 API-level gate test: exercises the actual /api/v1/keywords
+endpoints (create, fanout, rank-check) against real Postgres, with the
+rank-check endpoint's SERP call routed to the real mock DataForSEO server
+(not the live internet) via monkeypatched settings.
+"""
+import socket
+import threading
+import time
+
+import pytest
+import uvicorn
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+
+from app.core.config import get_settings
+from app.core.database import Base, get_db
+from app.main import app
+from tests.fixtures.mock_dataforseo import mock_dataforseo_app
+
+TEST_DATABASE_URL = "postgresql+psycopg://postgres:postgres@localhost:5432/searchos_db"
+engine = create_engine(TEST_DATABASE_URL)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def _get_free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+@pytest.fixture(scope="module")
+def mock_dataforseo_server():
+    port = _get_free_port()
+    config = uvicorn.Config(mock_dataforseo_app, host="127.0.0.1", port=port, log_level="warning")
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    for _ in range(50):
+        if server.started:
+            break
+        time.sleep(0.1)
+    else:
+        raise RuntimeError("Mock DataForSEO server did not start in time")
+    yield f"http://127.0.0.1:{port}/v3"
+    server.should_exit = True
+    thread.join(timeout=5)
+
+
+@pytest.fixture(autouse=True)
+def configure_settings_for_test(mock_dataforseo_server, monkeypatch):
+    settings = get_settings()
+    monkeypatch.setattr(settings, "serp_provider", "dataforseo")
+    monkeypatch.setattr(settings, "dataforseo_login", "testuser")
+    monkeypatch.setattr(settings, "dataforseo_password", "testpass")
+    monkeypatch.setattr(settings, "dataforseo_base_url", mock_dataforseo_server)
+
+
+@pytest.fixture(autouse=True)
+def clean_database():
+    with engine.begin() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            conn.execute(text(f'TRUNCATE TABLE "{table.name}" CASCADE'))
+    yield
+
+
+def override_get_db():
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+app.dependency_overrides[get_db] = override_get_db
+client = TestClient(app)
+
+
+def _admin_headers(email: str) -> dict:
+    client.post("/api/v1/auth/register", json={"email": email, "password": "testpass123"})
+    resp = client.post("/api/v1/auth/login", data={"username": email, "password": "testpass123"})
+    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+
+def _create_business(headers: dict) -> str:
+    resp = client.post(
+        "/api/v1/businesses",
+        json={"name": "Sure Shift", "website_url": "https://sureshift.in"},
+        headers=headers,
+    )
+    return resp.json()["id"]
+
+
+def test_create_keyword(mock_dataforseo_server):
+    headers = _admin_headers("kwuser1@sureshift.in")
+    business_id = _create_business(headers)
+
+    resp = client.post(
+        "/api/v1/keywords",
+        json={"business_id": business_id, "term": "packers and movers najafgarh"},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["term"] == "packers and movers najafgarh"
+    assert body["is_seed"] is True
+
+
+def test_fanout_creates_keyword_variants(mock_dataforseo_server):
+    headers = _admin_headers("kwuser2@sureshift.in")
+    business_id = _create_business(headers)
+
+    seed_resp = client.post(
+        "/api/v1/keywords",
+        json={"business_id": business_id, "term": "house shifting"},
+        headers=headers,
+    )
+    seed_id = seed_resp.json()["id"]
+
+    fanout_resp = client.post(
+        f"/api/v1/keywords/{seed_id}/fanout",
+        json={"locations": ["Najafgarh"]},
+        headers=headers,
+    )
+    assert fanout_resp.status_code == 200
+    variants = fanout_resp.json()
+    assert len(variants) > 5
+    assert all(v["parent_keyword_id"] == seed_id for v in variants)
+    assert all(v["is_seed"] is False for v in variants)
+    assert any("Najafgarh" in v["term"] for v in variants)
+
+    # Confirm they're actually persisted, not just returned
+    list_resp = client.get(f"/api/v1/keywords?business_id={business_id}", headers=headers)
+    assert len(list_resp.json()) == 1 + len(variants)  # seed + variants
+
+
+def test_fanout_does_not_duplicate_existing_keywords(mock_dataforseo_server):
+    headers = _admin_headers("kwuser3@sureshift.in")
+    business_id = _create_business(headers)
+
+    seed_resp = client.post(
+        "/api/v1/keywords",
+        json={"business_id": business_id, "term": "movers cost"},
+        headers=headers,
+    )
+    seed_id = seed_resp.json()["id"]
+
+    # Pre-create a keyword that WOULD be generated by fan-out
+    client.post(
+        "/api/v1/keywords",
+        json={"business_id": business_id, "term": "best movers cost"},
+        headers=headers,
+    )
+
+    fanout_resp = client.post(f"/api/v1/keywords/{seed_id}/fanout", json={}, headers=headers)
+    variant_terms = [v["term"] for v in fanout_resp.json()]
+    assert "best movers cost" not in variant_terms  # already existed, not duplicated
+
+
+def test_rank_check_end_to_end_via_real_endpoint(mock_dataforseo_server):
+    """This is the real integration proof: hits the actual API endpoint,
+    which calls the actual DataForSEOProvider, which makes a real HTTP
+    call to the mock server, and the result gets persisted correctly."""
+    headers = _admin_headers("kwuser4@sureshift.in")
+    business_id = _create_business(headers)  # website_url = https://sureshift.in, matches mock data
+
+    kw_resp = client.post(
+        "/api/v1/keywords",
+        json={"business_id": business_id, "term": "packers and movers delhi"},
+        headers=headers,
+    )
+    keyword_id = kw_resp.json()["id"]
+
+    rank_resp = client.post(f"/api/v1/keywords/{keyword_id}/rank-check", headers=headers)
+    assert rank_resp.status_code == 200, rank_resp.text
+    body = rank_resp.json()
+    assert body["position"] == 2  # sureshift.in is position 2 in the mock response
+    assert body["url"] == "https://sureshift.in/packers-and-movers"
+    assert body["change_type"] == "newly_ranked"  # first check ever for this keyword
+
+
+def test_rank_check_second_call_detects_change(mock_dataforseo_server):
+    headers = _admin_headers("kwuser5@sureshift.in")
+    business_id = _create_business(headers)
+
+    kw_resp = client.post(
+        "/api/v1/keywords",
+        json={"business_id": business_id, "term": "packers and movers delhi"},
+        headers=headers,
+    )
+    keyword_id = kw_resp.json()["id"]
+
+    first = client.post(f"/api/v1/keywords/{keyword_id}/rank-check", headers=headers)
+    assert first.json()["change_type"] == "newly_ranked"
+
+    second = client.post(f"/api/v1/keywords/{keyword_id}/rank-check", headers=headers)
+    assert second.json()["change_type"] == "unchanged"  # mock always returns position 2
+    assert second.json()["delta"] == 0
+
+
+def test_viewer_cannot_create_keyword(mock_dataforseo_server):
+    _admin_headers("kwuser6a@sureshift.in")
+    viewer_headers = _admin_headers("kwuser6b@sureshift.in")
+
+    resp = client.post(
+        "/api/v1/keywords",
+        json={"business_id": "00000000-0000-0000-0000-000000000000", "term": "test"},
+        headers=viewer_headers,
+    )
+    assert resp.status_code == 403

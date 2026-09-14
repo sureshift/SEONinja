@@ -6,7 +6,7 @@ Phase 1: adds auth, RBAC, business CRUD, audit logging.
 """
 from fastapi import FastAPI
 
-from app.api import auth, business, crawl
+from app.api import auth, business, crawl, keyword
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -14,12 +14,13 @@ settings = get_settings()
 app = FastAPI(
     title="Search Growth OS",
     description="Autonomous SEO + AEO + GEO Search Growth Operating System",
-    version="0.2.0-phase2",
+    version="0.3.0-phase3",
 )
 
 app.include_router(auth.router)
 app.include_router(business.router)
 app.include_router(crawl.router)
+app.include_router(keyword.router)
 
 
 @app.get("/health")
@@ -28,7 +29,7 @@ def health_check() -> dict:
     return {
         "status": "ok",
         "service": "search-growth-os-api",
-        "phase": "2",
+        "phase": "3",
         "environment": settings.environment,
     }
 

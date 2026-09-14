@@ -73,6 +73,37 @@ curl http://localhost:8000/api/v1/crawl-jobs/<job_id>/pages -H "Authorization: B
 curl http://localhost:8000/api/v1/crawl-jobs/<job_id>/issues -H "Authorization: Bearer $TOKEN"
 ```
 
+## Status: Phase 3 complete ✅ (Provider Abstraction + SERP/Keyword Core)
+
+- `SERPProvider` implemented for real: `DataForSEOProvider` (working
+  client against DataForSEO's documented API contract) + `OwnSERPProvider`
+  (deliberately NOT a Google scraper - see class docstring for why)
+- Keyword storage, query fan-out (question/comparison/commercial/
+  transactional/local variants), rank tracking with change detection
+  (gained/lost/newly_ranked/dropped_out/unchanged)
+- API: `/api/v1/keywords` (create/list), `/{id}/fanout`, `/{id}/rank-check`
+- 49/49 gate tests passing (4 P0 + 7 P1 + 10 P2 + 28 P3)
+
+### Important caveat: DataForSEO field mapping unverified against a live account
+No DataForSEO credentials were available while building this. The client
+was built against their publicly documented API contract and tested
+against a real mock server replicating that contract (real HTTP, real
+auth headers) - but **the exact response field names have not been
+confirmed against a real live call**. Before relying on this in
+production: add real `DATAFORSEO_LOGIN`/`DATAFORSEO_PASSWORD` to `.env`,
+run one real `rank-check` call, and compare the actual response shape
+against `app/providers/serp_provider.py`'s `_parse_organic_response` -
+adjust field names there if anything doesn't match.
+
+### Setting up DataForSEO (when ready)
+Add to `.env`:
+```
+DATAFORSEO_LOGIN=<your login>
+DATAFORSEO_PASSWORD=<your password>
+```
+And change `SERP_PROVIDER=own` to `SERP_PROVIDER=dataforseo` in the
+`searchos-api` service environment (`infra/docker-compose.searchos.yml`).
+
 ## Running locally (standalone, no other services required)
 
 ```bash
@@ -108,6 +139,6 @@ pip install -r requirements.txt
 pytest tests/ -v
 ```
 
-## Next: Phase 3 — Provider Abstraction + SERP/Keyword Core
-SERPProvider implementation, keyword storage/clustering, query fan-out,
-rank tracking. Not started yet.
+## Next: Phase 4 — Content & Quality Intelligence
+Page quality scoring, content gap analysis, schema engine, internal
+linking recommendations. Not started yet.

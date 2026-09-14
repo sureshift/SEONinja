@@ -42,7 +42,9 @@ services:
       - LLM_PROVIDER=lmstudio
       - LMSTUDIO_BASE_URL=${LM_STUDIO_URL}
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
-      - SERP_PROVIDER=own
+      - SERP_PROVIDER=${SEARCHOS_SERP_PROVIDER:-own}
+      - DATAFORSEO_LOGIN=${DATAFORSEO_LOGIN:-}
+      - DATAFORSEO_PASSWORD=${DATAFORSEO_PASSWORD:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

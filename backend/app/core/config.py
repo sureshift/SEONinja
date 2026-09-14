@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     serp_provider: str = "own"  # own | dataforseo
     dataforseo_login: str = ""
     dataforseo_password: str = ""
+    dataforseo_base_url: str = "https://api.dataforseo.com/v3"
 
 
 @lru_cache

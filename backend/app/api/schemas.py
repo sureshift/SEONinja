@@ -91,3 +91,39 @@ class TechnicalIssueOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class KeywordCreate(BaseModel):
+    business_id: uuid.UUID
+    term: str
+    language: str = "en"
+    location: str | None = None
+    intent: str | None = None
+
+
+class KeywordOut(BaseModel):
+    id: uuid.UUID
+    business_id: uuid.UUID
+    term: str
+    language: str
+    location: str | None
+    intent: str | None
+    search_volume: int | None
+    is_seed: bool
+    parent_keyword_id: uuid.UUID | None
+
+    class Config:
+        from_attributes = True
+
+
+class FanOutRequest(BaseModel):
+    locations: list[str] = []
+
+
+class RankCheckOut(BaseModel):
+    keyword_id: uuid.UUID
+    snapshot_id: uuid.UUID
+    position: int | None
+    url: str | None
+    change_type: str | None = None
+    delta: int | None = None
