@@ -124,6 +124,7 @@ def test_technical_seo_detects_every_planted_issue(crawl_results):
         "missing_title", "missing_meta_description", "multiple_h1", "missing_h1",
         "thin_content", "noindex", "4xx_error", "redirect_chain",
         "duplicate_title", "duplicate_meta_description", "orphan_page",
+        "canonical_mismatch",
     }
     missing = expected - issue_types_found
     assert not missing, f"Detector failed to flag: {missing}"

@@ -6,6 +6,8 @@ and reusable from both the API layer and (later) the crawl worker.
 """
 from collections import Counter
 
+from app.crawler.normalizer import normalize_url
+
 THIN_CONTENT_WORD_THRESHOLD = 200
 
 
@@ -74,6 +76,17 @@ def detect_issues(pages: list[dict]) -> list[dict]:
             issues.append(_issue("missing_canonical", "medium", url,
                 "Page has no canonical tag.",
                 "Add a self-referencing canonical tag unless intentionally canonicalizing elsewhere."))
+        else:
+            own_normalized = normalize_url(url)
+            canonical_normalized = normalize_url(page["canonical_url"])
+            if canonical_normalized != own_normalized:
+                issues.append(_issue("canonical_mismatch", "critical", url,
+                    f"Canonical tag points to a different URL ({page['canonical_url']}) "
+                    "instead of this page itself.",
+                    "If unintentional, fix immediately - this tells search engines this "
+                    "page is NOT the canonical version, which can remove it from search "
+                    "results entirely under its real URL. Only point elsewhere if "
+                    "deliberately consolidating true duplicate content."))
 
         if page.get("is_noindex"):
             issues.append(_issue("noindex", "medium", url,

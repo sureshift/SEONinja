@@ -17,6 +17,7 @@ Planted issues, one of each so the detector's full range gets exercised:
   /redirect-me         - 302s to /redirect-target
   /redirect-target     - final destination
   /orphan              - only in sitemap.xml, not linked from anywhere
+  /wrong-canonical     - canonical tag points at / instead of itself
   /duplicate-a, /duplicate-b - identical titles and descriptions
   /disallowed          - blocked via robots.txt, must NOT be crawled
 """
@@ -32,13 +33,14 @@ BASE_HEAD = """
 
 
 @test_app.get("/", response_class=HTMLResponse)
-def home():
-    return """
+def home(request: Request):
+    base = str(request.base_url).rstrip("/")
+    return f"""
     <html><head>
       <title>Sure Shift Test Home</title>
       <meta name="description" content="Home page description for testing.">
-      <link rel="canonical" href="http://testserver/">
-      <script type="application/ld+json">{"@type": "Organization", "name": "Test Co"}</script>
+      <link rel="canonical" href="{base}/">
+      <script type="application/ld+json">{{"@type": "Organization", "name": "Test Co"}}</script>
     </head><body>
       <h1>Welcome</h1>
       <p>""" + ("word " * 300) + """</p>
@@ -53,6 +55,7 @@ def home():
       <a href="/duplicate-a">Duplicate A</a>
       <a href="/duplicate-b">Duplicate B</a>
       <a href="/disallowed">Disallowed page</a>
+      <a href="/wrong-canonical">Wrong canonical page</a>
       <img src="/logo.png" alt="Sure Shift logo">
       <img src="/no-alt.png">
     </body></html>
@@ -117,6 +120,12 @@ def orphan():
 @test_app.get("/disallowed", response_class=HTMLResponse)
 def disallowed():
     return '<html><head><title>Disallowed Page</title></head><body><h1>Should never be fetched</h1></body></html>'
+
+
+@test_app.get("/wrong-canonical", response_class=HTMLResponse)
+def wrong_canonical(request: Request):
+    base = str(request.base_url).rstrip("/")
+    return f'<html><head><title>Wrong Canonical Page</title><meta name="description" content="desc"><link rel="canonical" href="{base}/"></head><body><h1>Wrong Canonical</h1><p>' + ("word " * 300) + "</p></body></html>"
 
 
 @test_app.get("/robots.txt", response_class=PlainTextResponse)
