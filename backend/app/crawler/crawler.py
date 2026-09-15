@@ -17,6 +17,20 @@ from app.crawler.sitemap import discover_sitemap_urls
 
 USER_AGENT = "SearchGrowthOS-Crawler/0.1 (+https://sureshift.in)"
 
+# Reserved infrastructure paths that are never real site content, regardless
+# of domain. /cdn-cgi/ is Cloudflare's own path (e.g. their automatic
+# email-obfuscation rewriter) - crawling it produces noise, not findings.
+# Discovered by actually crawling sureshift.in: its Cloudflare-protected
+# mailto: links got rewritten to /cdn-cgi/l/email-protection and picked up
+# as a normal internal link, which then scored badly on every downstream
+# analysis (quality, technical issues) despite not being real content.
+EXCLUDED_PATH_PREFIXES = ("/cdn-cgi/",)
+
+
+def _is_excluded_path(url: str) -> bool:
+    path = urlparse(url).path
+    return any(path.startswith(prefix) for prefix in EXCLUDED_PATH_PREFIXES)
+
 
 @dataclass
 class CrawledPageResult:
@@ -65,6 +79,8 @@ async def crawl_site(
             while queue and len(batch) < concurrency and len(visited) + len(batch) < max_pages:
                 url, depth, via = queue.pop(0)
                 if url in visited or depth > max_depth:
+                    continue
+                if _is_excluded_path(url):
                     continue
                 if not is_allowed(robots_parser, url, USER_AGENT):
                     continue

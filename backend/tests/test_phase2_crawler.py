@@ -72,6 +72,15 @@ def test_crawl_respects_robots_txt_disallow(crawl_results):
     assert not any(u.endswith("/disallowed") for u in urls_crawled)
 
 
+def test_crawl_excludes_cdn_cgi_infrastructure_paths(crawl_results):
+    """Discovered via a real sureshift.in crawl: Cloudflare's automatic
+    email-obfuscation rewrites mailto: links to /cdn-cgi/l/email-protection,
+    which is linked like a normal page but isn't real content and
+    shouldn't be crawled/analyzed."""
+    urls_crawled = {r.url for r in crawl_results}
+    assert not any("/cdn-cgi/" in u for u in urls_crawled)
+
+
 def test_crawl_follows_redirect_and_records_chain(crawl_results):
     redirect_page = _find(crawl_results, "/redirect-me")
     assert redirect_page is not None

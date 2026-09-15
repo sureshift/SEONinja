@@ -56,6 +56,7 @@ def home(request: Request):
       <a href="/duplicate-b">Duplicate B</a>
       <a href="/disallowed">Disallowed page</a>
       <a href="/wrong-canonical">Wrong canonical page</a>
+      <a href="/cdn-cgi/l/email-protection">Protected email link</a>
       <img src="/logo.png" alt="Sure Shift logo">
       <img src="/no-alt.png">
     </body></html>
@@ -131,6 +132,14 @@ def wrong_canonical(request: Request):
 @test_app.get("/robots.txt", response_class=PlainTextResponse)
 def robots_txt():
     return "User-agent: *\nDisallow: /disallowed\n"
+
+
+@test_app.get("/cdn-cgi/l/email-protection", response_class=HTMLResponse)
+def cdn_cgi_email_protection():
+    """Simulates Cloudflare's real automatic email-obfuscation endpoint -
+    exists on real Cloudflare-protected sites but is never real content
+    and should never be crawled."""
+    return "<html><body>Cloudflare rewrote a mailto: link to this - not real content.</body></html>"
 
 
 @test_app.get("/sitemap.xml")
