@@ -127,3 +127,67 @@ class RankCheckOut(BaseModel):
     url: str | None
     change_type: str | None = None
     delta: int | None = None
+
+
+class PageQualityOut(BaseModel):
+    id: uuid.UUID
+    crawled_page_id: uuid.UUID
+    url: str
+    overall_score: float
+    component_scores: dict
+    explanation: list
+
+    class Config:
+        from_attributes = True
+
+
+class SchemaRecommendationOut(BaseModel):
+    id: uuid.UUID
+    url: str
+    recommended_type: str
+    reason: str
+    suggested_jsonld: dict
+    status: str
+
+    class Config:
+        from_attributes = True
+
+
+class ImageIssueOut(BaseModel):
+    issue_type: str
+    severity: str
+    affected_url: str
+    image_src: str
+    description: str
+    recommended_fix: str
+
+
+class InternalLinkingRecommendationOut(BaseModel):
+    url: str
+    inbound_internal_links: int
+    issue_type: str
+    description: str
+    recommendation: str
+
+
+class ContentGapOut(BaseModel):
+    id: uuid.UUID
+    keyword_id: uuid.UUID
+    keyword_term: str
+    classification: str
+    matched_url: str | None
+    match_score: float | None
+
+    class Config:
+        from_attributes = True
+
+
+class ContentDecayAlertOut(BaseModel):
+    id: uuid.UUID
+    url: str
+    decay_type: str
+    description: str
+    severity: str
+
+    class Config:
+        from_attributes = True

@@ -104,6 +104,40 @@ DATAFORSEO_PASSWORD=<your password>
 And change `SERP_PROVIDER=own` to `SERP_PROVIDER=dataforseo` in the
 `searchos-api` service environment (`infra/docker-compose.searchos.yml`).
 
+## Status: Phase 4 complete ✅ (Content & Quality Intelligence)
+
+Built: Page Quality scoring (Module 4), Schema detection/validation/
+recommendation (Module 16), Image SEO (Module 26), Internal Linking
+analysis (Module 17), Content Gap vs. tracked keywords (Module 12),
+Content Decay via crawl-history diffing (Module 13).
+
+Deferred, not silently skipped:
+- Module 11 (LLM-generated content briefs/outlines) — needs Phase 0's
+  `LLMProvider` actually implemented first (still a stub); not building
+  that as a side-quest here
+- Modules 14/15 (Topical Authority, Entity/Knowledge Graph) — need real
+  graph infrastructure; substantial enough to deserve their own phase
+- Module 27 (Video SEO) — sureshift.in has no meaningful video content
+
+Everything here runs on data Phase 2 (crawls) and Phase 3 (keywords)
+already collected — no new crawling infrastructure needed.
+
+API: `/api/v1/crawl-jobs/{id}/analyze/quality` + `/quality`,
+`/analyze/schema` + `/schema-recommendations`, `/image-issues`,
+`/internal-linking`; `/api/v1/businesses/{id}/content-gaps` (POST to
+recompute — replaces previous analysis, it's current-state not a log),
+`/content-decay` (POST — needs 2+ completed crawls, diffs the two most
+recent)
+
+Schema recommendations never fabricate facts (roadmap hard rule) — e.g.
+a suggested LocalBusiness block omits address/phone entirely rather than
+guessing, with an explicit note on what's needed before deploying it.
+
+80/80 gate tests passing (4 P0 + 7 P1 + 10 P2 + 28 P3 + 31 P4), including
+a full pipeline test: real crawl of the local test site → quality scores
+→ schema recommendations → image issues → content gaps against real
+tracked keywords → decay detection across two real crawls.
+
 ## Running locally (standalone, no other services required)
 
 ```bash
@@ -139,6 +173,6 @@ pip install -r requirements.txt
 pytest tests/ -v
 ```
 
-## Next: Phase 4 — Content & Quality Intelligence
-Page quality scoring, content gap analysis, schema engine, internal
-linking recommendations. Not started yet.
+## Next: Phase 5 — Local SEO, GBP & Reputation
+Google Business Profile data, geo-grid rank tracking, review sentiment
+tracking (Modules 19, 20, 21). Not started yet.
